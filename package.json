@@ -1,0 +1,16 @@
+{
+  "name": "thb-monitor-data",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "snapshot": "node scripts/export-data.js"
+  },
+  "dependencies": {
+    "@tmcw/togeojson": "^7.1.2",
+    "@xmldom/xmldom": "^0.9.12",
+    "fflate": "^0.8.3"
+  }
+}
