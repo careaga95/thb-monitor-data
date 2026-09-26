@@ -1,0 +1,26 @@
+name: Record monthly refresh activity
+on:
+  schedule:
+    - cron: '23 3 1 * *'
+  workflow_dispatch:
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Commit monthly marker
+        run: |
+          set -euo pipefail
+          month=$(date -u +%Y-%m)
+          if [ "$(cat .last-refresh-month 2>/dev/null || true)" = "$month" ]; then
+            echo "Monthly marker is already current."
+            exit 0
+          fi
+          printf '%s\n' "$month" > .last-refresh-month
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .last-refresh-month
+          git commit -m "Record public refresh for $month"
+          git push origin HEAD:main
