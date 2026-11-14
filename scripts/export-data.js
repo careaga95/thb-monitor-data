@@ -4,6 +4,18 @@ import { pathToFileURL } from 'node:url';
 import { createNoaaService } from '../server/noaa.js';
 import { createUsgsService } from '../server/usgs.js';
 
+const layerKinds = ['track', 'cone'];
+
+function canReuseLayer(product, cached, staleFeed) {
+  if (cached?.status !== 'ok' || cached.data?.type !== 'FeatureCollection' ||
+      !Array.isArray(cached.data.features)) return false;
+  // Legacy snapshots can lack product metadata in both files.
+  if (staleFeed && !product && cached.issuedAt == null) return true;
+  if (typeof product?.issuedAt !== 'string' || typeof cached.issuedAt !== 'string') return false;
+  const issuedAt = Date.parse(product.issuedAt);
+  return Number.isFinite(issuedAt) && issuedAt === Date.parse(cached.issuedAt);
+}
+
 export async function collectSnapshot({ noaa = createNoaaService(), usgs = createUsgsService(), previous = async () => null } = {}) {
   const files = {}, warnings = [];
   async function feed(name, get) {
@@ -20,14 +32,26 @@ export async function collectSnapshot({ noaa = createNoaaService(), usgs = creat
   await Promise.all((storms.storms || []).map(async storm => {
     if (!/^(al|ep)\d{6}$/.test(storm.id)) return;
     const name = `storms/${storm.id}/layers.json`;
-    try {
-      if (storms.stale) throw Error('Old feed');
-      files[name] = await noaa.getLayers(storm.id);
-      if (!files[name]) throw Error('Layers missing');
-    } catch {
-      const old = await previous(name);
-      files[name] = old?.id === storm.id ? { ...old, stale: true } : { id:storm.id, stale:true, track:{status:'error'}, cone:{status:'error'} };
+    let layers = null;
+    if (!storms.stale) {
+      try { layers = await noaa.getLayers(storm.id); }
+      catch { /* Try the preceding snapshot for the same products. */ }
     }
+    if (layers?.id !== storm.id) layers = null;
+    const missing = layerKinds.filter(kind => !layers?.[kind] || layers[kind].status === 'error');
+    if (!missing.length) {
+      files[name] = layers;
+      return;
+    }
+
+    const old = await previous(name);
+    const result = layers ? { ...layers } : { id: storm.id, stale: true };
+    for (const kind of missing) {
+      const cached = old?.id === storm.id ? old[kind] : null;
+      if (canReuseLayer(storm[kind], cached, storms.stale)) result[kind] = cached;
+      else result[kind] ??= { status: 'error' };
+    }
+    files[name] = result;
   }));
   return { files, warnings };
 }
