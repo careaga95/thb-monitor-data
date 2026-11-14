@@ -9,7 +9,7 @@ export function normalizeEarthquakes(payload) {
     return f;
   }).filter(f => f.properties.type === 'earthquake').map(f => {
     const p = f.properties, c = f.geometry?.coordinates;
-    if (!/^[a-zA-Z0-9_-]+$/.test(f.id || '') || f.geometry?.type !== 'Point' || !Array.isArray(c) || !Number.isFinite(c[0]) || Math.abs(c[0]) > 180 || !Number.isFinite(c[1]) || Math.abs(c[1]) > 90 || !iso(p.time)) throw Error('Invalid earthquake');
+    if (typeof f.id !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(f.id) || f.geometry?.type !== 'Point' || !Array.isArray(c) || !Number.isFinite(c[0]) || Math.abs(c[0]) > 180 || !Number.isFinite(c[1]) || Math.abs(c[1]) > 90 || !iso(p.time)) throw Error('Invalid earthquake');
     return { id: f.id, place: typeof p.place === 'string' ? p.place : 'Ubicación sin descripción',
       longitude: c[0], latitude: c[1], depthKm: Number.isFinite(c[2]) ? c[2] : null,
       magnitude: Number.isFinite(p.mag) ? p.mag : null, magnitudeType: typeof p.magType === 'string' ? p.magType : null,
